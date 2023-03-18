@@ -2,11 +2,14 @@ const express = require('express')
 const app = express()
 const bodyParser = require('body-parser')
 const { default: mongoose }=require('mongoose')
-const {Users, Samples}=require('./models/users')
+const {Users, Samples, Requests}=require('./models/users')
 const bcrypt = require('bcrypt')
 const jwt = require("jsonwebtoken")
 const cookieParser = require('cookie-parser')
 const SECRETKEY = "JWTSECRET"
+const { AllSamples, ListHospitalSamples, addBloodSamples,editBloodSamples, deleteBloodSamples } = require('./controllers/bloodsample')
+const { addBloodRequest, listBloodRequest } = require('./controllers/bloodrequest')
+const { signUp, login, logout } = require('./controllers/users')
 
 
 mongoose.connect('mongodb://localhost:27017/Hospital')
@@ -14,122 +17,38 @@ app.use(express.json())
 app.use(bodyParser.urlencoded({ extended: true }))
 app.use(cookieParser())
 
-// list  all blood samples
-app.get('/bloodsamples',(req,res)=>{
-    console.log('all blood samples')
-})
+// ///// list  all blood samples //////
+app.get('/bloodsamples',AllSamples)
 
-// add blood sample(only for hospitals)
-app.post('/bloodsamples/add',async(req,res)=>{
-    try {
-        const {type}=req.body
-        const token = req.cookies.jwt
-        if(token){
-            const decoded = jwt.verify(token,SECRETKEY)
-            if(decoded.role === 'hospital'){
-                const sample = new Samples({
-                  Hospital:decoded.username,
-                  bloodType:type
+//////// add blood sample(only for hospitals) ////////////////////
+app.post('/bloodsamples/add',addBloodSamples)
 
-                })
-                await sample.save()
-                res.send('sample added')
-            }else{
-                res.send('you dont have permission')
-            }
+/////// edit blood sample for hospital only/////////////////////
+app.put('/bloodsamples/edit/:id', editBloodSamples)
 
-        }else{
-            res.send('you need to login')
-        }
-        
-    } catch (error) {
-        console.error(error)       
-    }
+/////// delete the blood samples only for HOSPITALS////////////////////
+app.delete('/bloodsamples/delete/:id',deleteBloodSamples)
 
-})
-// edit blood sample for hospital only
-app.put('/bloodsamples/edit/:id',async(req,res)=>{
-    try {
-        const {type}=req.body
-        const token = req.cookies.jwt
-        if(token){
-            const decoded = jwt.verify(token,SECRETKEY)
-            if(decoded.role === 'hospital'){
-                const sampleName = await Samples.findOne({ _id:req.params.id })
-                if(sampleName.Hospital === decoded.username){
-                    const updatedSample = await Samples.findByIdAndUpdate(req.params.id,{
-                        bloodType:type
-                    })
-                    res.send('sample updated')
-                }else{
-                    res.send('not your blood sample')
-                } 
-                
-            }else{
-                res.send('you dont have permission')
-            }
+////// GET the blood samples of the respective hospitals ;
+app.get('/bloodsamples/list',ListHospitalSamples)
 
-        }else{
-            res.send('you need to login')
-        }
-        
-    } catch (error) {
-        console.error(error)       
-    }
-})
 
-// sign up user
-app.post('/signup',async(req,res)=>{
-    try{
-    const { username ,password,role}=req.body
-    const hash = await bcrypt.hash(password, 12);
-    const validuser = await Users.findOne({ username:username})
-    if(!validuser){
-        const user = new Users({
-            username,
-            password:hash,
-            role
-        })
-        await user.save()
 
-        const token = jwt.sign({ username:user.username, id:user._id, role:user.role },SECRETKEY)
-        res.cookie("jwt", token, { httpOnly: true })
-        console.log("user saved")
-        res.end()
-    }else{
-        res.send('user already exists')
-    }
-}catch(err){
-    console.error(err)
-}
-})
-//////     login  and logout users
-app.post('/login',async(req, res)=>{
-    try {
-        const {username,password} = req.body
-        const user = await Users.findOne({ username: username})
-        if(user){
-            const validPassword = await bcrypt.compare(password, user.password)
-            if(validPassword){
-                const token = jwt.sign({ username:user.username, id:user._id, role:user.role },SECRETKEY)
-                res.cookie("jwt", token, { httpOnly: true })
-                console.log("logged in")
-                res.send('logged in')
-                res.end()
-            }else{
-                res.send('incorrect password or user')
-            }
-        }else{
-            res.send('incorrect user or password')
-        }
-    } catch (error) {
-        console.error(error)
-    }
-})
-app.post('/logout',(req,res)=>{
-    res.clearCookie("jwt")
-    res.send('Logged out')
-})
+///// POST REQUEST FOR BLOOD SAMPLE (ONLY FOR RECIEVERS) HERE ID(HEADER IS SAMPLE ID) //////
+app.post('/bloodsamples/request/:id',addBloodRequest)
+
+/////////// GET request SO RESPECTIVE HOSPITAL CAN GET LIST OF REQUEST MADE TO THEM(ONLY FOR HOSPITAL)
+app.get('/bloodsamples/request/list',listBloodRequest)
+
+
+
+
+///////////////// sign up user////////////////
+app.post('/signup',signUp)
+
+//////     login  and logout users ////////////////////////
+app.post('/login',login)
+app.post('/logout',logout)
 
 app.listen(3000,()=>{
     console.log('listening on port 3000')
