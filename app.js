@@ -48,7 +48,35 @@ app.post('/bloodsamples/add',async(req,res)=>{
 
 })
 // edit blood sample for hospital only
-// app.put('/bloodsamples/edit/:id',())
+app.put('/bloodsamples/edit/:id',async(req,res)=>{
+    try {
+        const {type}=req.body
+        const token = req.cookies.jwt
+        if(token){
+            const decoded = jwt.verify(token,SECRETKEY)
+            if(decoded.role === 'hospital'){
+                const sampleName = await Samples.findOne({ _id:req.params.id })
+                if(sampleName.Hospital === decoded.username){
+                    const updatedSample = await Samples.findByIdAndUpdate(req.params.id,{
+                        bloodType:type
+                    })
+                    res.send('sample updated')
+                }else{
+                    res.send('not your blood sample')
+                } 
+                
+            }else{
+                res.send('you dont have permission')
+            }
+
+        }else{
+            res.send('you need to login')
+        }
+        
+    } catch (error) {
+        console.error(error)       
+    }
+})
 
 // sign up user
 app.post('/signup',async(req,res)=>{
